@@ -148,6 +148,9 @@ RUN apk add --no-cache --virtual .build-deps \
         perl-dev \
         readline-dev \
         zlib-dev \
+        icu-dev \
+        apr-dev \
+        apr-util-dev \
     && apk add --no-cache \
         gd \
         curl \
@@ -156,9 +159,9 @@ RUN apk add --no-cache --virtual .build-deps \
         libgcc \
         libxslt \
         zlib \
-        icu-dev \
-        apr-dev \
-        apr-util-dev \
+        icu \
+        apr \
+        apr-util \
     && cd /tmp \
     && curl -fSL https://www.openssl.org/source/openssl-${RESTY_OPENSSL_VERSION}.tar.gz -o openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
     && tar xzf openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
