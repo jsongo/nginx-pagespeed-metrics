@@ -75,7 +75,7 @@ RUN mkdir -p /usr/src/ngxpagespeed/psol/lib/Release/linux/x64 && \
 ##########################################
 # Build Nginx with support for PageSpeed #
 ##########################################
-FROM alpine:$ALPINE_VERSION
+FROM alpine:$ALPINE_VERSION AS nginx
 
 LABEL author="jsongo <jsongo@qq.com>"
 
@@ -148,9 +148,6 @@ RUN apk add --no-cache --virtual .build-deps \
         perl-dev \
         readline-dev \
         zlib-dev \
-        icu-dev \
-        apr-dev \
-        apr-util-dev \
     && apk add --no-cache \
         gd \
         curl \
@@ -159,9 +156,9 @@ RUN apk add --no-cache --virtual .build-deps \
         libgcc \
         libxslt \
         zlib \
-        icu \
-        apr \
-        apr-util \
+        icu-dev \
+        apr-dev \
+        apr-util-dev \
     && cd /tmp \
     && curl -fSL https://www.openssl.org/source/openssl-${RESTY_OPENSSL_VERSION}.tar.gz -o openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
     && tar xzf openssl-${RESTY_OPENSSL_VERSION}.tar.gz \
@@ -194,7 +191,7 @@ ARG RESTY_CONFIG_OPTIONS_MORE=" \
         --add-module=/usr/src/ngxpagespeed \
 "
 
-COPY --from=pagespeed /usr/bin/envsubst /usr/local/bin
+# COPY --from=pagespeed /usr/bin/envsubst /usr/local/bin
 
 RUN cd /tmp/openresty-${RESTY_VERSION} \
     && ./configure -j${RESTY_J} ${_RESTY_CONFIG_DEPS} ${RESTY_CONFIG_OPTIONS} ${RESTY_CONFIG_OPTIONS_MORE} \
@@ -211,6 +208,18 @@ RUN cd /tmp/openresty-${RESTY_VERSION} \
     && ln -sf /dev/stdout /usr/local/openresty/nginx/logs/access.log \
     && ln -sf /dev/stderr /usr/local/openresty/nginx/logs/error.log
 
+##########################################
+# Combine everything with minimal layers #
+##########################################
+FROM alpine:$ALPINE_VERSION
+# created by Nico Berlee <nico.berlee@on2it.net>
+LABEL maintainer="jsongo<jsongo@qq.com>"
+
+COPY --from=nginx /usr/local/openresty /usr/local/openresty
+COPY --from=pagespeed /usr/bin/envsubst /usr/local/bin
+# timezone
+COPY --from=nginx /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
 # Add additional binaries into PATH for convenience
 ENV PATH=$PATH:/usr/local/openresty/luajit/bin/:/usr/local/openresty/nginx/sbin/:/usr/local/openresty/bin/
 
@@ -221,18 +230,22 @@ COPY conf/*.conf /etc/nginx/conf.d/
 COPY lib/prometheus.lua /usr/local/openresty/luajit/lib
 COPY index.html /usr/share/nginx/html/
 
-RUN rm -rf /usr/src
+RUN apk --no-cache upgrade && \
+    scanelf --needed --nobanner --format '%n#p' /usr/local/openresty/nginx/sbin/nginx /usr/local/openresty/nginx/modules/*.so /usr/local/bin/envsubst \
+            | tr ',' '\n' \
+            | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+            | xargs apk add --no-cache
 
 # 启动 pagespeed
 RUN mkdir -p /var/ngx_pagespeed_cache && \
     chown -R nobody:nobody /var/ngx_pagespeed_cache
 
-# timezone
-RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-# 清理
-RUN apk del tzdata bash curl && \
-    rm -rf /usr/share/terminfo
+RUN mkdir -p /var/log/nginx && \
+    ln -sf /dev/stdout /var/log/nginx/access.log && \
+    ln -sf /dev/stderr /var/log/nginx/error.log
 
 EXPOSE 80
+
+STOPSIGNAL SIGTERM
 
 CMD ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]
