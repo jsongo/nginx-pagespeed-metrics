@@ -216,9 +216,13 @@ RUN mkdir -p /etc/nginx/conf.d
 COPY conf/nginx.conf.default /usr/local/openresty/nginx/conf/nginx.conf
 COPY conf/*.conf /etc/nginx/conf.d/
 COPY lib/prometheus.lua /usr/local/openresty/luajit/lib
-COPY index.html /usr/share/nginx/html
+COPY index.html /usr/share/nginx/html/
 
 RUN rm -rf /usr/src
+
+# 启动 pagespeed
+RUN mkdir -p /var/ngx_pagespeed_cache && \
+    chown -R nobody:nobody /var/ngx_pagespeed_cache
 
 EXPOSE 80
 
