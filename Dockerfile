@@ -224,6 +224,12 @@ RUN rm -rf /usr/src
 RUN mkdir -p /var/ngx_pagespeed_cache && \
     chown -R nobody:nobody /var/ngx_pagespeed_cache
 
+# timezone
+RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+# 清理
+RUN apk del tzdata bash curl && \
+    rm -rf /usr/share/terminfo
+
 EXPOSE 80
 
 CMD ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]
